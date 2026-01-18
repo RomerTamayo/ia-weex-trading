@@ -8,8 +8,9 @@ const CryptoAnalysis = () => {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  // Nuevo estado para controlar el audio de ElevenLabs
+  const [currentAudio, setCurrentAudio] = useState(null);
 
-  // Símbolos para WEEX Futures (sin prefijo cmt_, el backend lo agrega)
   const cryptos = [
     { symbol: 'btcusdt', name: 'Bitcoin', ticker: 'BTC' },
     { symbol: 'dashusdt', name: 'Dash', ticker: 'DASH' },
@@ -19,6 +20,8 @@ const CryptoAnalysis = () => {
   const analyzeCrypto = async () => {
     setIsLoading(true);
     setData(null);
+    // Detener audio previo si existe
+    if (currentAudio) currentAudio.pause();
 
     try {
       const response = await fetch(`${API_URL}/api/analyze-crypto`, {
@@ -31,7 +34,7 @@ const CryptoAnalysis = () => {
       
       if (result.success) {
         setData(result);
-        speak(result.aiReport);
+        speak(result.aiReport); // Ahora llama a la nueva versión de ElevenLabs
       } else {
         alert('Error: ' + result.error);
       }
@@ -42,56 +45,45 @@ const CryptoAnalysis = () => {
     }
   };
 
-const speak = (text) => {
-  console.log('🔊 Intentando reproducir:', text.substring(0, 50) + '...');
-  
-  if (!('speechSynthesis' in window)) {
-    alert('Tu navegador no soporta síntesis de voz');
-    return;
-  }
+  // NUEVA FUNCIÓN SPEAK: Conecta con el endpoint /api/generate-audio de tu server.js
+  const speak = async (text) => {
+    console.log('🎙️ Solicitando audio profesional a ElevenLabs vía Backend...');
+    setIsSpeaking(true);
 
-  window.speechSynthesis.cancel();
+    try {
+      const response = await fetch(`${API_URL}/api/generate-audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
 
-  setTimeout(() => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Obtener voces disponibles
-    const voices = window.speechSynthesis.getVoices();
-    const spanishVoice = voices.find(v => v.lang.startsWith('es'));
-    
-    if (spanishVoice) {
-      utterance.voice = spanishVoice;
-      console.log('🎤 Usando voz:', spanishVoice.name);
+      if (!response.ok) throw new Error('Error al generar el audio');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      
+      setCurrentAudio(audio);
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(url);
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('❌ Error de voz:', error);
+      setIsSpeaking(false);
+      alert('No se pudo reproducir el audio de ElevenLabs');
     }
-    
-    utterance.lang = 'es-ES';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    
-    utterance.onstart = () => {
-      console.log('✅ Reproducción iniciada');
-      setIsSpeaking(true);
-    };
-    
-    utterance.onend = () => {
-      console.log('✅ Reproducción finalizada');
-      setIsSpeaking(false);
-    };
-    
-    utterance.onerror = (event) => {
-      console.error('❌ Error en TTS:', event.error);
-      setIsSpeaking(false);
-      alert(`Error de voz: ${event.error}`);
-    };
+  };
 
-    console.log('🎙️ Iniciando speechSynthesis.speak()...');
-    window.speechSynthesis.speak(utterance);
-  }, 250); // Aumentar delay a 250ms
-};
-
+  // NUEVA FUNCIÓN STOPSPEAKING: Para detener el objeto Audio
   const stopSpeaking = () => {
-    window.speechSynthesis.cancel();
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
     setIsSpeaking(false);
   };
 
@@ -101,9 +93,14 @@ const speak = (text) => {
         <h1 style={{ color: 'white', textAlign: 'center', fontSize: '2.5rem', marginBottom: '30px' }}>
           Crypto AI Assistant 🤖
         </h1>
-        <button onClick={() => speak('Hola, esto es una prueba de voz')}>
-  🔊 Probar Voz
-</button>
+        
+        {/* Botón de prueba actualizado */}
+        <button 
+          onClick={() => speak('Hola, probando la voz profesional de ElevenLabs desde el servidor')}
+          style={{ marginBottom: '20px', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}
+        >
+          🔊 Probar Voz Profesional
+        </button>
 
         {/* Selector de Crypto */}
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginBottom: '30px' }}>

@@ -9,7 +9,14 @@ const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// CONFIGURACIÓN DE CORS: Permite peticiones desde tu frontend
+app.use(cors({
+  origin: '*', // Permitir todos los orígenes para desarrollo local
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // Inicializar Gemini
@@ -21,6 +28,43 @@ const WEEX_FUTURES_API = 'https://api-contract.weex.com'; // Para futuros
 
 // Usamos FUTURES porque Spot no funciona correctamente
 const USE_FUTURES = true; // TRUE = Futuros funcionan perfectamente
+
+// ============================================================================
+// NUEVO ENDPOINT PARA ELEVENLABS (Soluciona problemas de CORS del navegador)
+// ============================================================================
+app.post('/api/generate-audio', async (req, res) => {
+  try {
+    const { text } = req.body;
+    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+    const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Voz por defecto (Rachel)
+
+    if (!text) return res.status(400).json({ error: 'Texto requerido' });
+
+    console.log('🎙️ Generando audio en el servidor...');
+
+    const response = await axios({
+      method: 'post',
+      url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+      data: {
+        text: text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      },
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      responseType: 'arraybuffer'
+    });
+
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(response.data);
+
+  } catch (error) {
+    console.error('❌ Error ElevenLabs:', error.response?.data?.toString() || error.message);
+    res.status(500).json({ error: 'Error al procesar el audio' });
+  }
+});
 
 // ============================================================================
 // FUNCIONES PARA OBTENER DATOS DE WEEX EXCHANGE
@@ -277,7 +321,7 @@ async function getOrderBook(symbol) {
 async function analyzeWithAI(priceData, historical, orderBook, symbol) {
   try {
     // Usar gemini-1.5-flash-latest (siempre disponible)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const prompt = `Eres un analista experto de criptomonedas. Genera un reporte de voz conciso en español.
 
@@ -434,7 +478,7 @@ app.get('/api/test-weex', async (req, res) => {
       success: allOk,
       message: allOk ? '✅ Ambas APIs funcionando' : '⚠️ Algunos endpoints fallaron',
       tests,
-      currentMode: USE_FUTURES ? 'FUTURES' : 'SPOT'
+      currentMode: USE_FUTURES ? 'FUTUROS' : 'SPOT'
     });
     
   } catch (error) {
@@ -472,6 +516,7 @@ app.listen(PORT, () => {
   console.log(`📈 Futures API: ${WEEX_FUTURES_API}`);
   console.log('\n📊 Endpoints:');
   console.log('   POST /api/analyze-crypto');
+  console.log('   POST /api/generate-audio'); // Nuevo endpoint registrado
   console.log('   GET  /api/test-weex');
   console.log('   GET  /health');
   console.log('\n🧪 Prueba: http://localhost:3000/api/test-weex');
