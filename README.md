@@ -1,4 +1,4 @@
-# 🚀 Crypto AI Sentinel: Real-Time Analysis & Voice Synthesis
+# 🚀 AI Weex Trading: Real-Time Analysis & Voice Synthesis
 
 An experimental **Artificial Intelligence Trading Assistant**. This system monitors the cryptocurrency market in real-time, processes technical indicators using **Gemini AI**, and narrates strategic insights using high-fidelity professional voices from **ElevenLabs**.
 
